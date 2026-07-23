@@ -6,3 +6,9 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# Backup configs (might contain personal IPs / paths)
+backup-config.json
+last-run.json
+*-backup.json
+photganizer-backup/
