@@ -5,4 +5,14 @@ __pycache__/
 *.sqlite3
 .venv/
 venv/
-.env
+
+# Backup configs (might contain personal IPs / paths)
+backup-config.json
+last-run.json
+*-backup.json
+photganizer-backup/
+
+# Session file (auto-saved by rsync-backup; may contain personal IPs/paths)
+.photganizer-session.json
+config.bat
+node_modules
