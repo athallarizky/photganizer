@@ -5,16 +5,16 @@ import os
 import re
 from pathlib import Path
 
-# Source root: override via PHOTO_SOURCE_ROOT env var atau --source flag.
+# Source root: override via PHOTO_SOURCE_ROOT env var or --source CLI flag.
 DEFAULT_SOURCE_ROOT = Path.home() / "storage/shared/Pictures"
 SOURCE_ROOT = Path(os.environ.get("PHOTO_SOURCE_ROOT", str(DEFAULT_SOURCE_ROOT)))
 DEST_ROOT = Path(os.environ.get("PHOTO_DEST_ROOT", str(SOURCE_ROOT / "Organized")))
 
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".heic")
 
-# Mapping pattern filename -> nama folder output.
-# Urutan penting: match pertama yang menang.
-# Ekstensi regex (case-insensitive) dicocokkan terhadap nama file.
+# Mapping: filename pattern -> output folder name.
+# Order matters: first match wins.
+# Patterns are matched case-insensitive against the filename.
 RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^FB_IMG_", re.IGNORECASE),           "Facebook"),
     (re.compile(r"com\.facebook\.(katana|lite)", re.I), "Facebook"),

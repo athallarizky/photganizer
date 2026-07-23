@@ -1,12 +1,11 @@
 # rsync-backup
 
-Backup foto dari perangkat remote (HP/Termux/SSH server) ke komputer ini via
-**Tailscale SSH + rsync**.
+Back up photos from a remote phone to this computer via **Tailscale SSH + rsync**.
 
-## Arsitektur
+## Architecture
 
 ```
-[Computer]                       [Remote device]
+[Computer]                       [Phone]
                   Tailscale / LAN
    rsync  ─────────SSH─────────►  sshd:22 (or custom)
    (pull)                          |
@@ -17,74 +16,93 @@ Backup foto dari perangkat remote (HP/Termux/SSH server) ke komputer ini via
                                     └── ...
 ```
 
-**Arah**: pull (komputer mengambil dari remote device). Bukan push.
+**Direction**: pull (the computer fetches from the phone). Not push.
 
-**Kenapa pull?** Karena SSH key yang sudah ter-setup biasanya di arah
-komputer → remote. Script ini jalan di komputer, memakai key tersebut,
-jadi tidak perlu setup tambahan.
+**Why pull?** The SSH key you already have set up is usually computer → phone.
+This script runs on the computer and uses that existing key, so there's no
+extra setup.
 
-## Prasyarat
+## Prerequisites
 
-1. **SSH server running di remote device** (HP/termux/server), reachable
-   via Tailscale atau LAN.
-2. **SSH key komputer sudah terdaftar di remote device**
-   (`~/.ssh/authorized_keys` di remote).
-3. **`rsync` terinstall** di komputer:
-   - macOS: sudah pre-installed
+1. **SSH server running on the phone** (Termux / sshd), reachable via Tailscale
+   or LAN.
+2. **Computer's SSH key already registered** on the phone's
+   `~/.ssh/authorized_keys`.
+3. **`rsync` installed** on the computer:
+   - macOS: pre-installed
    - Linux: `apt install rsync` / `dnf install rsync`
-   - Windows (WSL/Git Bash): biasanya sudah
-4. **Path sumber di remote device** — perlu tahu folder foto berada dimana.
+   - Windows (WSL/Git Bash): usually pre-installed
 
 ## Install
 
 ```bash
-# Tidak ada dependency eksternal, hanya Python 3.10+ stdlib.
 git clone <repo-photganizer> ~/photganizer
 cd ~/photganizer
 ```
 
-## Cara Pakai
+Only Python 3.10+ stdlib is needed (no external dependencies).
+
+## Usage
 
 ```bash
-# Interactive (default), preview tanpa transfer:
+# Interactive (default), preview without transfer:
 python3 rsync-backup/backup.py --dry-run
 
-# Interactive, eksekusi nyata:
+# Interactive, real run:
 python3 rsync-backup/backup.py
 
-# Non-interactive (replay dari config sebelumnya):
-python3 rsync-backup/backup.py --from-json rsync-backup/last-run.json
+# Non-interactive (replay from saved config):
+python3 rsync-backup/backup.py --from-json backup-config.json
 
-# Simpan config tanpa run (untuk replay nanti):
-python3 rsync-backup/backup.py --save-json rsync-backup/last-run.json
+# Ignore the auto-loaded session file:
+python3 rsync-backup/backup.py --no-session
 ```
 
-## Env Vars (opsional)
+## Session persistence
 
-| Var | Default | Kegunaan |
-|-----|---------|----------|
-| `HP_TAILSCALE_HOST` | _(kosong, wajib input)_ | IP/hostname remote |
-| `HP_TAILSCALE_USER` | _(kosong, wajib input)_ | SSH user remote |
-| `HP_TAILSCALE_PORT` | `22` | Port SSH remote |
-| `PHOTO_SOURCE_ROOT` | _(kosong, wajib input)_ | Path sumber di remote |
-| `BACKUP_DEST_ROOT` | `<cwd>/photganizer-backup` | Destinasi default |
+After a successful interactive run, the script saves the chosen config to
+`.photganizer-session.json` at the repo root (gitignored — never committed).
 
-Contoh (untuk skip prompt env):
+On the next run, it detects the session and offers to reuse it — no need to
+re-enter IP/user/path each time.
+
+| Flag | Behavior |
+|------|----------|
+| _(default)_ | Load session if present, prompt to reuse |
+| `--no-session` | Ignore session, prompt for everything |
+| `--from-json FILE` | Skip session + prompts, load from explicit file |
+
+## Interactive flow
+
+1. **Mode**: `copy` or `move`
+   - `copy` — keeps files on phone (recommended)
+   - `move` — deletes from phone after transfer (`--remove-source-files`)
+2. **Phone connection**: host, user, port
+3. **Source root discovery** (one of):
+   - Auto-scan common Android photo paths (`/sdcard/Pictures`, `/sdcard/DCIM/Camera`, etc.)
+   - Browse filesystem interactively (navigate up/down)
+   - Custom path input
+4. **Folder selection**: multi-select via comma-separated numbers
+5. **Destination**: local path on this computer
+6. **Confirmation**: review before execute
+
+## Environment variables (optional)
+
+All env vars are optional and only used to pre-fill defaults in prompts.
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `PHONE_TAILSCALE_HOST` | _(empty, required input)_ | Phone host/IP |
+| `PHONE_TAILSCALE_USER` | _(empty, required input)_ | SSH user |
+| `PHONE_TAILSCALE_PORT` | `22` | SSH port |
+| `PHOTO_SOURCE_ROOT` | _(empty)_ | Source path on phone (skips scan) |
+| `BACKUP_DEST_ROOT` | `<cwd>/photganizer-backup` | Destination default |
+
+Example:
 ```bash
-HP_TAILSCALE_HOST=100.x.x.x HP_TAILSCALE_USER=user \
+PHONE_TAILSCALE_HOST=100.x.x.x PHONE_TAILSCALE_USER=user \
   python3 rsync-backup/backup.py
 ```
-
-## Prompt yang Muncul (Interactive)
-
-1. **Mode**: `copy` atau `move`
-   - `copy` — file tetap di remote (rekomendasi)
-   - `move` — hapus dari remote setelah transfer (`--remove-source-files`)
-2. **Remote connection**: host, user, port, source root
-3. **Pilih folder**: daftar subfolder di source root, multi-select via
-   comma-separated numbers
-4. **Destination**: path lokal di komputer
-5. **Konfirmasi**: review sebelum execute
 
 ## Output
 
@@ -100,24 +118,25 @@ HP_TAILSCALE_HOST=100.x.x.x HP_TAILSCALE_USER=user \
 
 ## Troubleshooting
 
-| Gejala | Penyebab | Solusi |
-|--------|----------|--------|
-| `SSH error: Connection refused` | remote sshd mati / unreachable | Cek remote: sshd running, Tailscale connected |
-| `SSH error: Permission denied` | SSH key tidak terdaftar di remote | Tambah ke `~/.ssh/authorized_keys` remote |
-| `find: ... Permission denied` | Source path tidak readable via SSH | Cek path benar & SSH user punya akses |
-| Folder kosong di output | rsync skip karena sudah ada & sama | Tambah `--delete` kalau mau mirror (hati-hati) |
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Connection refused` | sshd not running / unreachable | Check phone: sshd running, Tailscale connected |
+| `Permission denied (publickey)` | Computer's key not registered | Add to phone's `~/.ssh/authorized_keys` |
+| `find: ... Permission denied` | Source path not readable via SSH | Check path is correct & SSH user has access |
+| Empty output folder | rsync skipped because files already match | Add `--delete` to mirror (use with caution) |
+| No common paths found in scan | Phone uses non-standard layout | Use "Browse" or "Custom path input" |
 
 ## Tips
 
-- **Test pertama kali** selalu pakai `--dry-run` untuk lihat apa yang akan
-  ditransfer.
-- **Mode `move` berbahaya** — jika rsync gagal di tengah, file sudah terhapus
-  di remote. Pakai `copy` dulu, hapus manual setelah verifikasi.
-- **Resume transfer**: rsync otomatis resume via `--partial`. Bisa di-Ctrl+C
-  dan re-run aman.
-- **Besar transfer**: gunakan `--compress` (-z) sudah default. Untuk file
-  JPG/PNG yang sudah compressed, efek minimal.
+- **First run**: always use `--dry-run` to preview what will be transferred.
+- **Mode `move` is destructive** — if rsync fails mid-transfer, files are
+  already deleted from the phone. Use `copy` first, delete manually after
+  verifying.
+- **Resume**: rsync resumes automatically via `--partial`. You can Ctrl+C and
+  re-run safely.
+- **Large transfers**: `-z` (compression) is on by default. For already-compressed
+  files (JPG/PNG) the effect is minimal.
 
-## Lihat Juga
+## See also
 
-- [`SKILL.md`](./SKILL.md) — Panduan untuk LLM/Claude memakai script ini.
+- [`SKILL.md`](./SKILL.md) — Guide for LLM/Claude to drive this script.
