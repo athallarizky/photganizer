@@ -12,3 +12,6 @@ backup-config.json
 last-run.json
 *-backup.json
 photganizer-backup/
+
+# Session file (auto-saved by rsync-backup; may contain personal IPs/paths)
+.photganizer-session.json

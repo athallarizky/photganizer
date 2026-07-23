@@ -1,167 +1,187 @@
 ---
 name: photganizer-rsync-backup
-description: Backup photos dari remote device (HP/Termux/SSH server) ke komputer via Tailscale SSH + rsync. Pakai saat user ingin pindahkan foto/gambar dari remote ke komputer mereka, atau minta "backup HP", "tarik foto dari HP", "sinkronisasi galeri".
+description: Back up photos from a remote phone to this computer via Tailscale SSH + rsync. Use when the user wants to transfer photos/images from a phone to their computer, or asks for "backup phone", "pull photos from phone", "sync gallery".
 ---
 
 # SKILL: rsync-backup
 
-Panduan untuk LLM/Claude saat user meminta backup foto remote → komputer.
+Guide for an LLM/Claude driving this script when a user wants to back up
+photos from their phone to the computer.
 
-## Kapan Dipakai
+## When to use
 
-Trigger user (contoh):
-- "backup foto HP saya"
-- "pindahkan gambar dari HP ke komputer"
-- "tarik folder X dari HP"
-- "sinkron galeri HP ke sini"
+User triggers (examples):
+- "back up photos from my phone"
+- "transfer images from phone to computer"
+- "pull folder X from the phone"
+- "sync the phone gallery here"
 
-## Cara Invoke
+## How to invoke
 
-Script ini jalan di **komputer** (sisi user yang sekarang), bukan di remote.
+This script runs on the **computer** (the side the user is currently on),
+not on the phone.
 
 ```bash
-# Selalu mulai dengan dry-run untuk preview:
-python3 <path-ke-photganizer>/rsync-backup/backup.py --dry-run
+# Always start with a dry-run to preview:
+python3 <path-to-photganizer>/rsync-backup/backup.py --dry-run
 
-# Setelah user konfirmasi, jalankan tanpa --dry-run:
-python3 <path-ke-photganizer>/rsync-backup/backup.py
+# After user confirmation, run without --dry-run:
+python3 <path-to-photganizer>/rsync-backup/backup.py
 ```
 
-## Yang Harus Divalidasi ke User
+## Session reuse
 
-Script akan prompt secara interactive. Anda bisa bantu user menjawab, atau
-jalankan dengan `--from-json` kalau user sudah tahu maunya apa.
+After the first successful run, a session file is saved at
+`<repo>/.photganizer-session.json`. Subsequent runs auto-detect it and offer
+to reuse the saved config. For repeat runs:
 
-### 1. Mode: copy atau move?
+```bash
+# Reuse saved session (default behavior):
+python3 rsync-backup/backup.py
+# Just press Enter / "y" at the prompts to accept defaults.
 
-- **`copy`** (recommended default) — file tetap di remote, hanya diduplikat
-  ke komputer.
-- **`move`** — hapus dari remote setelah transfer. Berbahaya kalau transfer
-  gagal.
+# Force fresh prompts:
+python3 rsync-backup/backup.py --no-session
+```
 
-**Selalu rekomendasikan `copy`** kecuali user eksplisit minta move.
+## What to validate with the user
 
-### 2. Remote connection (wajib diisi user)
+The script will prompt interactively. You can help the user answer, or run
+with `--from-json` if you already know all values.
 
-Script butuh:
-- **Host** (IP Tailscale / hostname)
+### 1. Mode: copy or move?
+
+- **`copy`** (recommended default) — duplicates files to computer, leaves
+  them on phone.
+- **`move`** — deletes from phone after transfer. Risky if transfer fails.
+
+**Always recommend `copy`** unless the user explicitly asks for move.
+
+### 2. Phone connection (required user input)
+
+The script needs:
+- **Host** (Tailscale IP / hostname)
 - **SSH user**
-- **SSH port** (default 22, atau 8022 untuk Termux)
-- **Source root path** di remote
+- **SSH port** (default 22, or 8022 for Termux)
+- **Source root path** on the phone
 
-**Tidak ada default** untuk host/user/path — user wajib input. Jangan
-menebak atau hallucinate IP.
+There are **no defaults** for host/user/path — the user must provide them.
+Do not guess or hallucinate IPs.
 
-### 3. Folder mana yang di-backup?
+If the user doesn't know the source path, the script will auto-scan common
+Android locations and offer to browse the filesystem interactively.
 
-Script akan SSH ke remote dan list subfolder di source root. User akan
-lihat daftar seperti:
+### 3. Which folders to back up?
+
+The script SSHes into the phone and lists subfolders of the source root.
+The user will see something like:
 
 ```
-  1. [Semua folder]
+  1. [All folders]
   2. Threads
   3. Instander
   4. Facebook
   ...
 ```
 
-Pilihan:
-- `0` = semua folder (mirror penuh)
-- `1,3,5` = beberapa folder saja
+Pick:
+- `0` = all folders (full mirror)
+- `1,3,5` = specific folders
 
 ### 4. Destination path
 
-Default: `<cwd>/photganizer-backup`. User bisa override ke path lain.
+Default: `<cwd>/photganizer-backup`. User can override to any path.
 
-**Validasi**: pastikan disk punya ruang cukup. Cek dengan `df -h <dest>`.
+**Validate**: ensure the disk has enough space. Check with `df -h <dest>`.
 
-## Konfirmasi Sebelum Execute
+## Before execution
 
-Script akan print summary:
+The script prints a summary:
 
 ```
-=== Konfirmasi ===
+=== Confirmation ===
   Mode       : COPY
-  Remote     : user@<host>:<port>
+  Phone      : user@<host>:<port>
   Source     : <source_root>
-  Folder     : Threads, Facebook
+  Folders    : Threads, Facebook
   Destination: /home/user/photganizer-backup
 ```
 
-**Selalu tunjukkan ini ke user dan minta konfirmasi eksplisit** sebelum
-tekan `y`.
+**Always show this to the user and ask for explicit confirmation** before
+proceeding with `y`.
 
-## Common Pitfalls
+## Common pitfalls
 
-1. **Salah arah**: script PULL (komputer mengambil dari remote). Bukan push.
-2. **SSH key salah arah**: butuh key **komputer → remote** (sudah default
-   tersetup kalau user sudah bisa SSH ke remote).
-3. **Path source remote**: pakai absolute path yang valid di sisi remote.
-   Untuk Termux/Android: `/sdcard/...` atau `/storage/emulated/0/...`.
-4. **Move = destruktif**: selalu preview dulu dengan `--dry-run` sebelum move.
+1. **Wrong direction**: the script PULLs (computer fetches from phone). Not push.
+2. **Wrong SSH key direction**: needs key **computer → phone** (already set up
+   if the user can SSH to the phone).
+3. **Source path on remote**: use absolute path valid on the phone side. For
+   Termux/Android: `/sdcard/...` or `/storage/emulated/0/...`.
+4. **Move = destructive**: always preview with `--dry-run` before move.
 
-## Error Handling
+## Error handling
 
-| Pesan error | Arti | Solusi |
-|-------------|------|--------|
-| `Connection refused` | remote sshd mati / unreachable | Cek remote, pastikan sshd running |
-| `Permission denied (publickey)` | Key komputer tidak terdaftar di remote | Tambah ke `~/.ssh/authorized_keys` remote |
-| `No such file or directory` di source | Path remote salah | Verifikasi dengan `ssh user@host ls /path` |
+| Error message | Meaning | Fix |
+|---------------|---------|-----|
+| `Connection refused` | sshd not running / unreachable | Check phone: sshd running, Tailscale connected |
+| `Permission denied (publickey)` | Computer's key not in phone's authorized_keys | Add to `~/.ssh/authorized_keys` |
+| `No such file or directory` on source | Wrong remote path | Verify with `ssh user@host ls /path` |
 
-## Setelah Backup Selesai
+## After backup completes
 
-User mungkin ingin:
-- **Organize**: jalankan `screenshot-organizer/organize_screenshots.py` di
-  komputer untuk kategorikan hasil backup.
-- **Verify**: bandingkan count file source vs dest.
-- **Hapus source** (kalau mode copy): manual setelah verify.
+The user may want to:
+- **Organize**: run `screenshot-organizer/organize_screenshots.py` on the
+  computer to categorize the backup output.
+- **Verify**: compare source vs dest file counts.
+- **Delete source** (if copy mode): manually after verifying.
 
-## Contoh Sesi LLM-Driven
+## Example LLM-driven session
 
 ```
-User: "tolong backup foto Threads dan Facebook dari HP ke /mnt/external/photos"
+User: "back up Threads and Facebook photos from my phone to /mnt/external/photos"
 
-Anda:
-1. Cek rsync & SSH reachable: `ssh <user>@<host> ls /path/to/photos/`
+You:
+1. Check connectivity: `ssh <user>@<host> ls /path/to/photos/`
 2. Preview: `python3 rsync-backup/backup.py --dry-run`
-   - Saat prompt host/user/port: isi dari jawaban user
-   - Saat prompt folder: masukkan nomor Threads + Facebook
-   - Saat prompt dest: /mnt/external/photos
-3. Tunjukkan summary ke user, minta konfirmasi
-4. Run actual: `python3 rsync-backup/backup.py --from-json last-run.json`
-5. Verify count di dest
+   - At host/user/port prompt: use values from user
+   - At source root prompt: scan results or user-provided path
+   - At folder prompt: enter numbers for Threads + Facebook
+   - At dest prompt: /mnt/external/photos
+3. Show summary to user, ask for confirmation
+4. Real run: `python3 rsync-backup/backup.py` (session auto-loaded)
+5. Verify count in dest
 ```
 
-## Non-Interactive Mode (LLM Friendly)
+## Non-interactive mode (LLM-friendly)
 
-Kalau Anda sudah tahu semua jawaban (misal dari sesi sebelumnya), skip prompt:
+If you already know all the answers (e.g. from a prior session), skip prompts:
 
 ```bash
-# Buat config JSON dulu
+# First, create the config JSON
 cat > backup-config.json <<EOF
 {
   "mode": "copy",
   "folders": ["Threads", "Facebook"],
   "dest": "/mnt/external/photos",
-  "hp_host": "<user-provided-ip>",
-  "hp_user": "<user>",
-  "hp_port": 22,
-  "source_root": "/path/on/remote"
+  "phone_host": "<user-provided-ip>",
+  "phone_user": "<user>",
+  "phone_port": 22,
+  "source_root": "/path/on/phone"
 }
 EOF
 
-# Run non-interactive
+# Run non-interactively
 python3 rsync-backup/backup.py --from-json backup-config.json
 ```
 
-Cocok untuk:
+Good for:
 - Cron jobs
 - Repeated runs
 - Automation
 
-## Catatan Keamanan
+## Security notes
 
-- **Jangan hardcode IP/user di script atau config yang di-commit ke git.**
-- **Jangan share IP Tailscale spesifik user secara publik.**
-- Untuk automation, pakai environment variables (lihat README) atau file
-  config yang sudah di-`.gitignore`.
+- **Never hardcode IP/user in scripts or configs committed to git.**
+- **Never share a user's specific Tailscale IP publicly.**
+- For automation, use environment variables (see README) or a config file
+  that's already in `.gitignore`.
