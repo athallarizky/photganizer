@@ -28,10 +28,12 @@ extra setup.
    or LAN.
 2. **Computer's SSH key already registered** on the phone's
    `~/.ssh/authorized_keys`.
-3. **`rsync` installed** on the computer:
-   - macOS: pre-installed
-   - Linux: `apt install rsync` / `dnf install rsync`
-   - Windows (WSL/Git Bash): usually pre-installed
+3. **`rsync` installed on BOTH ends**:
+   - **Computer**: macOS (pre-installed) / Linux (`apt install rsync` /
+     `dnf install rsync`) / Windows (WSL or Git Bash usually pre-installed)
+   - **Phone (Termux)**: `pkg install rsync` — Termux does **not** ship rsync
+     by default; this is required because SSH invokes `rsync` on the remote
+     side to speak the rsync protocol.
 
 ## Install
 
@@ -122,6 +124,7 @@ PHONE_TAILSCALE_HOST=100.x.x.x PHONE_TAILSCALE_USER=user \
 |---------|-------|-----|
 | `Connection refused` | sshd not running / unreachable | Check phone: sshd running, Tailscale connected |
 | `Permission denied (publickey)` | Computer's key not registered | Add to phone's `~/.ssh/authorized_keys` |
+| `rsync: command not found` (or similar) | rsync not installed on phone | On Termux: `pkg install rsync` (required on **both** ends) |
 | `find: ... Permission denied` | Source path not readable via SSH | Check path is correct & SSH user has access |
 | Empty output folder | rsync skipped because files already match | Add `--delete` to mirror (use with caution) |
 | No common paths found in scan | Phone uses non-standard layout | Use "Browse" or "Custom path input" |

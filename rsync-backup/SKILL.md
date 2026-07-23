@@ -115,9 +115,12 @@ proceeding with `y`.
 1. **Wrong direction**: the script PULLs (computer fetches from phone). Not push.
 2. **Wrong SSH key direction**: needs key **computer → phone** (already set up
    if the user can SSH to the phone).
-3. **Source path on remote**: use absolute path valid on the phone side. For
+3. **rsync must be on BOTH ends** — computer and phone. SSH invokes `rsync`
+   on the remote side, so a missing remote `rsync` causes cryptic errors
+   like `rsync: command not found`. On Termux: `pkg install rsync`.
+4. **Source path on remote**: use absolute path valid on the phone side. For
    Termux/Android: `/sdcard/...` or `/storage/emulated/0/...`.
-4. **Move = destructive**: always preview with `--dry-run` before move.
+5. **Move = destructive**: always preview with `--dry-run` before move.
 
 ## Error handling
 
