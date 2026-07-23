@@ -1,60 +1,54 @@
-# ss-organizer
+# photganizer
 
-Group screenshots by source app (WhatsApp, Threads, Facebook) and split each app's
-screenshots into **Discussion** (chat / conversation / comments) vs **Meme**
-(single image, photo, or graphic).
+Kumpulan tool untuk **organize** dan **backup** foto/screenshot Android.
 
-The source app is parsed from the filename (Android embeds the package name).
-Discussion-vs-meme classification uses Tesseract OCR + the configured Anthropic-
-compatible LLM (env: `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`,
-`ANTHROPIC_DEFAULT_HAIKU_MODEL` — points at glm-air by default).
+## Komponen
 
-## Install
+| Folder | Fungsi |
+|--------|--------|
+| [`screenshot-organizer/`](./screenshot-organizer/) | Kategorikan screenshot berdasarkan pattern filename (WhatsApp, Facebook, Instagram, Threads, Twitter/X) |
+| [`rsync-backup/`](./rsync-backup/) | Backup foto dari remote device (HP/Termux/SSH) ke komputer via Tailscale SSH + rsync |
 
-```
-pkg install tesseract rust
-pip install -r requirements.txt
-```
+## screenshot-organizer
 
-`rust` is required because the `anthropic` SDK pulls in `jiter`, which has no
-prebuilt wheel for aarch64-Android and must be built from source.
+Kategorisasi murni dari **pattern filename** — tidak butuh OCR/LLM/network.
+File di-copy (bukan move), jadi aman untuk re-run.
 
-## Usage
-
-```
-# Preview matches without OCR / LLM / writes:
-python3 organize_screenshots.py --dry-run
-
-# Test on 5 files, prompt before sending to LLM:
-python3 organize_screenshots.py --apply --limit 5
-
-# Full run, no prompt:
-python3 organize_screenshots.py --apply --yes
+```bash
+python3 screenshot-organizer/organize_screenshots.py --dry-run
+python3 screenshot-organizer/organize_screenshots.py --apply --limit 10
+python3 screenshot-organizer/organize_screenshots.py --apply --yes
 ```
 
-## Flags
+Override source/dest via flag atau env var:
 
-- `--apply` — actually OCR + classify + copy. Default mode is dry-run.
-- `--limit N` — process at most N files.
-- `--since YYYY-MM-DD` — only files dated this day or later.
-- `--lang eng+ind` — Tesseract language(s). Default `eng`. Add `ind` for Indonesian.
-- `--yes` — skip the cost-estimate confirmation prompt.
-- `--reset-cache` — wipe `~/.cache/screenshot_organizer.sqlite` before running.
-- `-v` — verbose logging.
-
-## Output layout
-
-```
-~/storage/shared/Pictures/Gallery/owner/Organized/
-├── WhatsApp/
-│   ├── Discussion/   *.jpg
-│   └── Meme/         *.jpg
-├── Threads/
-│   ├── Discussion/
-│   └── Meme/
-└── Facebook/
-    ├── Discussion/
-    └── Meme/
+```bash
+python3 screenshot-organizer/organize_screenshots.py \
+  --source /path/to/photos --dest /path/to/output --apply
 ```
 
-Originals are **copied**, never moved — re-running is safe and idempotent.
+Detail: [`screenshot-organizer/`](./screenshot-organizer/) — lihat source.
+
+## rsync-backup
+
+Interactive prompt → rsync via Tailscale SSH. Mode copy atau move.
+Multi-select folder yang ingin di-backup.
+
+```bash
+python3 rsync-backup/backup.py --dry-run
+python3 rsync-backup/backup.py
+```
+
+Detail: [`rsync-backup/README.md`](./rsync-backup/README.md),
+[`rsync-backup/SKILL.md`](./rsync-backup/SKILL.md).
+
+## Requirements
+
+- Python 3.10+
+- Untuk rsync-backup: `rsync` di komputer + SSH server di remote
+
+## Privacy
+
+Tidak ada telemetri, tidak ada network call selain SSH (untuk rsync-backup).
+Tidak ada hardcoded credentials/IPs/personal info — semua via interactive
+prompt atau env vars.
