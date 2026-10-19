@@ -14,5 +14,4 @@ photganizer-backup/
 
 # Session file (auto-saved by rsync-backup; may contain personal IPs/paths)
 .photganizer-session.json
-config.bat
 node_modules
